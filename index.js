@@ -1,12 +1,22 @@
 const express = require('express');
 const { MongoClient } = require('mongodb');
 const ObjectId = require('mongodb').ObjectId;
+const admin = require("firebase-admin");
 
 const app = express();
 require('dotenv').config();
 const cors = require('cors');
 const port = process.env.PORT || 5000;
  
+
+//  firebase token 
+
+const serviceAccount = require("./fresh-food-firebase-adminsdk.json");
+
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount)
+});
+
 
 // middleware
 app.use(cors());
@@ -17,6 +27,24 @@ const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster
 console.log(uri);
 
 const client = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology: true, });
+
+
+async function verifyToken(req, res, next){
+    if(req.headers?.authorization?.startsWith('Bearer ')){
+        const token = req.headers.authorization.split(' ')[1];
+
+        try{
+            const decodedUser = await admin.auth().verifyIdToken(token);
+            req.decodedEmail = decodedUser.email
+
+        }catch{
+
+        }
+
+    }
+    next();
+}
+
 
 async function run(){
     try{
@@ -108,13 +136,24 @@ async function run(){
           });
 
           // User Role Admin PUT API
-          app.put('/users/admin', async(req, res) => {
+          app.put('/users/admin', verifyToken, async(req, res) => {
               const user = req.body;
-            //   console.log('Put', user)
-              const filter = {email: user.email}
-              const updateDoc = {$set: {role: 'admin'}}
-              const result = await usersCollection.updateOne(filter, updateDoc);
-              res.json(result)
+              console.log('Put', )
+              const requester = req.decodedEmail;
+
+              if(requester){
+                  const requestAccount = await usersCollection.findOne({email: requester})
+                  if(requestAccount.role === "admin"){
+                    const filter = {email: user.email}
+                    const updateDoc = {$set: {role: 'admin'}}
+                    const result = await usersCollection.updateOne(filter, updateDoc);
+                    res.json(result)
+                  }
+              }
+              else{
+                  res.status(401).json({message: 'You do not have access make admin'})
+              } 
+              
           })
           // User Role Admin Check GET API
           app.get('/users/:email', async(req, res) => {
@@ -190,3 +229,8 @@ app.get('/',(req, res) => {
 app.listen(port, () => {
     console.log(`My listening port number ${port}`)
 })
+
+
+
+// heroku link
+// https://limitless-shore-74822.herokuapp.com/
