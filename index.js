@@ -104,7 +104,7 @@ async function run(){
             const result = await orderCollection.find(query).toArray()
             console.log(result);
             res.json(result);
-          });
+          });    
 
           // Delete An Order
           app.delete('/order/delete/:id', async(req, res) => {
